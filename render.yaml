@@ -6,7 +6,9 @@ services:
     runtime: node
     plan: free
     region: singapore # closest free region to India; change if your users are elsewhere
-    buildCommand: npm ci --prefix client && npm run build --prefix client && npm ci --omit=dev --prefix server
+    # --include=dev: NODE_ENV=production (below) also applies at build time and would make npm skip
+    # the client's devDependencies (Vite). The server still installs production deps only.
+    buildCommand: npm ci --include=dev --prefix client && npm run build --prefix client && npm ci --omit=dev --prefix server
     startCommand: npm start --prefix server
     healthCheckPath: /api/health
     autoDeploy: true # every push to main redeploys

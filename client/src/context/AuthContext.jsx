@@ -37,13 +37,19 @@ export function AuthProvider({ children }) {
   // fields: { name, email, password, role, organization, city }
   const register = async (fields) => handleAuth(await api('/auth/register', { method: 'POST', body: fields }));
 
+  const updateProfile = async (fields) => {
+    const { user } = await api('/auth/me', { method: 'PATCH', body: fields });
+    setUser(user);
+    return user;
+  };
+
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

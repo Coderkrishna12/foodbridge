@@ -6,6 +6,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../components/ui/Toast.jsx';
 import { Alert, FullPageLoader, Spinner } from '../components/ui/Feedback.jsx';
 import ListingCard from '../components/ListingCard.jsx';
+import PhotoUploader from '../components/PhotoUploader.jsx';
+import { DIETARY, PACKAGING, PREPARATION } from '../utils/badges.js';
 import { FOOD_TYPES, toLocalInput } from '../utils/format.js';
 
 const MAX_DAYS = 7;
@@ -34,6 +36,7 @@ export default function ListingForm() {
   const [form, setForm] = useState({
     title: '', description: '', foodType: 'veg', quantity: 20, pickupAddress: '', city: user.city,
     expiresAt: toLocalInput(Date.now() + 4 * 3600e3),
+    images: [], packaging: null, preparation: [], dietary: [],
   });
   const [createdAt, setCreatedAt] = useState(null);
   const [error, setError] = useState('');
@@ -50,6 +53,7 @@ export default function ListingForm() {
         setForm({
           title: l.title, description: l.description, foodType: l.foodType, quantity: l.quantity,
           pickupAddress: l.pickupAddress || '', city: l.city,
+          images: l.images || [], packaging: l.packaging || null, preparation: l.preparation || [], dietary: l.dietary || [],
           // expired listings get a fresh default so "Extend" is one click
           expiresAt: toLocalInput(l.isExpired ? Date.now() + 4 * 3600e3 : l.expiresAt),
         });
@@ -60,6 +64,9 @@ export default function ListingForm() {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const onChange = (e) => set(e.target.name, e.target.value);
+  const toggle = (key, value) =>
+    setForm((f) => ({ ...f, [key]: f[key].includes(value) ? f[key].filter((v) => v !== value) : [...f[key], value] }));
+  const setImages = (updater) => setForm((f) => ({ ...f, images: updater(f.images) }));
   const bump = (d) => set('quantity', Math.min(5000, Math.max(1, (parseInt(form.quantity, 10) || 0) + d)));
 
   const onSubmit = async (e) => {
@@ -144,7 +151,51 @@ export default function ListingForm() {
 
             <hr className="divider" />
 
-            <Section n="2" title="Pickup">
+            <Section n="2" title="Photos" hint="Optional, up to 4. Listings with photos get claimed faster.">
+              <PhotoUploader images={form.images} setImages={setImages} onError={(m) => toast.error(m)} />
+            </Section>
+
+            <hr className="divider" />
+
+            <Section n="3" title="Packaging & preparation" hint="Helps NGOs know what to bring and who can eat it.">
+              <div className="field">
+                <span className="field-label">Packaging</span>
+                <div className="row" role="radiogroup" aria-label="Packaging">
+                  {Object.entries(PACKAGING).map(([k, { label, icon: Icon }]) => (
+                    <button type="button" key={k} className={`chip ${form.packaging === k ? 'on' : ''}`} aria-pressed={form.packaging === k}
+                      onClick={() => set('packaging', form.packaging === k ? null : k)}>
+                      <Icon /> {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="field">
+                <span className="field-label">Preparation <span className="muted xs">select all that apply</span></span>
+                <div className="row">
+                  {Object.entries(PREPARATION).map(([k, { label, icon: Icon }]) => (
+                    <button type="button" key={k} className={`chip ${form.preparation.includes(k) ? 'on' : ''}`} aria-pressed={form.preparation.includes(k)}
+                      onClick={() => toggle('preparation', k)}>
+                      <Icon /> {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="field">
+                <span className="field-label">Dietary & allergens <span className="muted xs">select all that apply</span></span>
+                <div className="row">
+                  {Object.entries(DIETARY).map(([k, { label, icon: Icon }]) => (
+                    <button type="button" key={k} className={`chip ${form.dietary.includes(k) ? 'on' : ''}`} aria-pressed={form.dietary.includes(k)}
+                      onClick={() => toggle('dietary', k)}>
+                      <Icon /> {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Section>
+
+            <hr className="divider" />
+
+            <Section n="4" title="Pickup">
               <div className="field">
                 <label className="field-label" htmlFor="addr">Pickup address</label>
                 <input id="addr" className="input" name="pickupAddress" value={form.pickupAddress} onChange={onChange} maxLength={200} placeholder="Building, street, landmark" />
@@ -158,7 +209,7 @@ export default function ListingForm() {
 
             <hr className="divider" />
 
-            <Section n="3" title="Best before">
+            <Section n="5" title="Best before">
               <div className="row">
                 {QUICK.map(([h, label]) => (
                   <button type="button" key={h} className="chip" onClick={() => set('expiresAt', toLocalInput(Date.now() + h * 3600e3))}>{label}</button>
@@ -189,12 +240,15 @@ export default function ListingForm() {
   );
 }
 
-function Section({ n, title, children }) {
+function Section({ n, title, hint, children }) {
   return (
     <div className="stack-lg">
-      <div className="row" style={{ gap: 12 }}>
+      <div className="row" style={{ gap: 12, flexWrap: 'nowrap', alignItems: 'flex-start' }}>
         <span className="avatar" style={{ width: 26, height: 26, fontSize: '0.75rem', background: 'var(--surface-2)', color: 'var(--text-2)' }}>{n}</span>
-        <h2 className="h3">{title}</h2>
+        <div>
+          <h2 className="h3">{title}</h2>
+          {hint && <p className="muted small" style={{ marginTop: 2 }}>{hint}</p>}
+        </div>
       </div>
       {children}
     </div>

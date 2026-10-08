@@ -247,6 +247,92 @@ test('DELETE listing: owner only', async () => {
   assert.equal((await req('GET', `/listings/${r.data._id}`, null, donor)).status, 404);
 });
 
+// ---------- WhatsApp numbers, photos, badges ----------
+
+const PNG_1PX = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+
+async function upload(bytes, token, type = 'image/png', name = 'food.png') {
+  const fd = new FormData();
+  fd.append('image', new Blob([bytes], { type }), name);
+  const res = await fetch(base + '/images', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
+  return { status: res.status, data: await res.json() };
+}
+
+test('profile: WhatsApp number is validated and normalized', async () => {
+  const patch = (phone, t = donor) => req('PATCH', '/auth/me', { phone }, t);
+  assert.equal((await patch('98765 43210')).data.user.phone, '919876543210'); // 10 digits -> +91
+  assert.equal((await patch('+44 7911 123456')).data.user.phone, '447911123456');
+  assert.equal((await patch('09876543210')).data.user.phone, '919876543210'); // leading 0 dropped
+  for (const bad of ['abc', '123', '+1 23', '9'.repeat(16)]) assert.equal((await patch(bad)).status, 400, bad);
+  assert.equal((await patch('')).data.user.phone, ''); // can be cleared
+  assert.equal((await req('PATCH', '/auth/me', { name: 'X' }, donor)).status, 400);
+  assert.equal((await req('PATCH', '/auth/me', { email: 'evil@x.com', role: 'ngo' }, donor)).data.user.role, 'donor'); // ignored
+  assert.equal((await req('POST', '/auth/register', user({ email: 'p@x.com', role: 'ngo', phone: 'call me' }))).status, 400);
+});
+
+test('WhatsApp numbers are only shared between donor and claiming NGO', async () => {
+  await req('PATCH', '/auth/me', { phone: '+91 90000 00001' }, donor);
+  await req('PATCH', '/auth/me', { phone: '+91 90000 00002' }, ngo);
+  const l = (await req('POST', '/listings', food({ title: 'Phone privacy test' }), donor)).data;
+
+  assert.equal((await req('GET', `/listings/${l._id}`, null, ngo)).data.donor.phone, undefined); // before claim
+  assert.equal((await req('GET', '/listings', null, ngo2)).data.find((x) => x._id === l._id).donor.phone, undefined);
+
+  await req('POST', `/listings/${l._id}/claim`, null, ngo);
+  assert.equal((await req('GET', `/listings/${l._id}`, null, ngo)).data.donor.phone, '919000000001');
+  assert.equal((await req('GET', `/listings/${l._id}`, null, donor)).data.claimedBy.phone, '919000000002');
+  const outsider = (await req('GET', `/listings/${l._id}`, null, ngo2)).data;
+  assert.equal(outsider.donor.phone, undefined);
+  assert.equal(outsider.claimedBy.phone, undefined);
+
+  await req('POST', `/listings/${l._id}/release`, null, ngo);
+  await req('DELETE', `/listings/${l._id}`, null, donor);
+});
+
+test('photo upload: role, type sniffing, size limit, serving', async () => {
+  assert.equal((await upload(PNG_1PX, null)).status, 401);
+  assert.equal((await upload(PNG_1PX, ngo)).status, 403);
+  assert.equal((await upload(Buffer.from('<script>alert(1)</script>'), donor)).status, 415); // lies about being PNG
+  assert.equal((await upload(Buffer.alloc(3 * 1024 * 1024 + 1, 0xff), donor, 'image/jpeg', 'big.jpg')).status, 413);
+
+  const up = await upload(PNG_1PX, donor);
+  assert.equal(up.status, 201);
+  const res = await fetch(`${base}/images/${up.data.id}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  assert.ok(Buffer.from(await res.arrayBuffer()).equals(PNG_1PX));
+  assert.equal((await fetch(`${base}/images/nope`)).status, 400);
+});
+
+test('listing photos + badges: validated, ownership-checked, cleaned up', async () => {
+  const mine = (await upload(PNG_1PX, donor)).data.id;
+  const mine2 = (await upload(PNG_1PX, donor)).data.id;
+  const theirs = (await upload(PNG_1PX, donor2)).data.id;
+
+  assert.equal((await req('POST', '/listings', food({ images: [theirs] }), donor)).status, 400); // not your photo
+  assert.equal((await req('POST', '/listings', food({ images: ['x'] }), donor)).status, 400);
+  assert.equal((await req('POST', '/listings', food({ images: [mine, mine, mine, mine, mine2].map(String).concat('a'.repeat(24)) }), donor)).status, 400);
+  assert.equal((await req('POST', '/listings', food({ packaging: 'paper-bag' }), donor)).status, 400);
+  assert.equal((await req('POST', '/listings', food({ dietary: ['jain', 'unicorn'] }), donor)).status, 400);
+  assert.equal((await req('POST', '/listings', food({ preparation: 'fresh' }), donor)).status, 400);
+
+  const r = await req('POST', '/listings', food({
+    images: [mine, mine2], packaging: 'individual', preparation: ['freshly-cooked', 'ready-to-eat', 'ready-to-eat'], dietary: ['jain'],
+  }), donor);
+  assert.equal(r.status, 201);
+  assert.deepEqual(r.data.images, [mine, mine2]);
+  assert.equal(r.data.packaging, 'individual');
+  assert.deepEqual(r.data.preparation, ['freshly-cooked', 'ready-to-eat']); // de-duplicated
+
+  // Removing a photo deletes it; deleting the listing deletes the rest
+  const u = await req('PUT', `/listings/${r.data._id}`, { images: [mine2], packaging: null }, donor);
+  assert.deepEqual(u.data.images, [mine2]);
+  assert.equal(u.data.packaging, null);
+  assert.equal((await fetch(`${base}/images/${mine}`)).status, 404);
+  await req('DELETE', `/listings/${r.data._id}`, null, donor);
+  assert.equal((await fetch(`${base}/images/${mine2}`)).status, 404);
+});
+
 test('unknown route returns 404 JSON', async () => {
   assert.equal((await req('GET', '/nope')).status, 404);
 });

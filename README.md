@@ -11,6 +11,9 @@ for the same food (or nobody does).
 - **NGOs** browse open listings in their city, sorted by urgency, and **claim** one. Claiming is atomic, so only one
   NGO can ever get a listing, even if two click at the same instant.
 - On claim, a random **4-digit pickup code** is shown only to that NGO. At handover the donor enters it, so food can only be released to the NGO that claimed it (5 wrong tries rotate the code).
+- **Food photos** (up to 4 per listing): compressed in the browser, EXIF/GPS stripped, stored in MongoDB.
+- **Packaging, preparation & dietary badges** (e.g. Individually packed, Freshly cooked, Jain, Contains nuts).
+- **Chat on WhatsApp**: once a listing is claimed, the donor and the NGO get a one-tap WhatsApp chat (and call) with each other. Numbers are never shown to anyone else.
 - The listing moves through **Available → Claimed → Picked up**. Expired food is automatically hidden and can't be claimed.
 - Live **impact stats** (meals rescued, active listings, donors, NGOs) are shown on the landing page.
 
@@ -46,6 +49,8 @@ for the same food (or nobody does).
 - `helmet` security headers with a strict Content Security Policy (no inline scripts)
 - Rate limiting: 20 logins / 10 sign-ups per 15 min per IP, 500 API requests overall
 - 4-digit pickup code: generated with `crypto.randomInt`, never sent to anyone but the claiming NGO, rotated after 5 wrong attempts, cleared on release/pickup
+- Photos: donors only, 3 MB cap, real file type checked by magic bytes (JPEG/PNG/WebP), held in memory (never written to disk), 40 uploads / 15 min, only the uploader can attach a photo, removed photos are deleted
+- WhatsApp numbers: normalized and validated server-side, only sent to the other party of a claimed/completed pickup
 - Request body limited to 10kb, field whitelisting, validation on every input
 - Demo accounts from `npm run seed` are for local testing only; don't seed a production database
 
@@ -86,7 +91,7 @@ register as an *NGO*, open **Find food** and claim it.
 cd server
 npm test
 ```
-16 checks: auth and validation, role permissions, full CRUD, the two-NGOs-claim-at-once race, claimed-listing locks,
+20 checks: auth and validation, role permissions, full CRUD, the two-NGOs-claim-at-once race, claimed-listing locks,
 release/complete permissions, expiry handling, address privacy, and impact stats.
 
 ## API
@@ -94,12 +99,15 @@ release/complete permissions, expiry handling, address privacy, and impact stats
 |---|---|---|---|
 | POST | /api/auth/register | public | `{name, email, password, role: donor\|ngo, organization, city}` |
 | POST | /api/auth/login | public | `{email, password}` |
+| PATCH | /api/auth/me | any user | Update name, organization, city, WhatsApp `phone` |
+| POST | /api/images | donor | Upload one food photo (multipart field `image`), returns `{ id, url }` |
+| GET | /api/images/:id | public | Serve a photo |
 | GET | /api/auth/me | any user | Current user |
 | GET | /api/stats | public | Meals rescued, pickups, donors, NGOs, open listings |
 | GET | /api/listings?city=&foodType= | any user | Open, unexpired listings (most urgent first) |
 | GET | /api/listings/mine | any user | Donor: my listings · NGO: my claims |
 | GET | /api/listings/:id | any user | Listing detail |
-| POST | /api/listings | donor | Create listing |
+| POST | /api/listings | donor | Create listing (incl. `images`, `packaging`, `preparation[]`, `dietary[]`) |
 | PUT | /api/listings/:id | owner donor | Update (only while available) |
 | DELETE | /api/listings/:id | owner donor | Delete (not while claimed) |
 | POST | /api/listings/:id/claim | NGO | Claim (atomic) |

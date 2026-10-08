@@ -2,7 +2,8 @@ const BASE = import.meta.env.VITE_API_URL || '/api';
 export const TOKEN_KEY = 'foodbridge_token';
 
 export async function api(path, { method = 'GET', body } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+  const isForm = body instanceof FormData; // file uploads: let the browser set the multipart boundary
+  const headers = isForm ? {} : { 'Content-Type': 'application/json' };
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) headers.Authorization = `Bearer ${token}`;
 
@@ -11,7 +12,7 @@ export async function api(path, { method = 'GET', body } = {}) {
     res = await fetch(`${BASE}${path}`, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
     });
   } catch {
     throw new Error('Cannot reach server. Is the backend running?');

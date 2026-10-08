@@ -11,6 +11,9 @@ import { useConfirm } from '../components/ui/Confirm.jsx';
 import { EmptyState, FullPageLoader, Spinner } from '../components/ui/Feedback.jsx';
 import { Countdown, FoodTag, StatusBadge } from '../components/ListingBits.jsx';
 import { PickupCodeCard, VerifyPickup } from '../components/PickupCode.jsx';
+import Gallery from '../components/Gallery.jsx';
+import { BadgeGroups } from '../components/Badges.jsx';
+import { ContactCard } from '../components/WhatsApp.jsx';
 import useNow from '../hooks/useNow.js';
 import { FOOD_TYPES, displayStatus, fmtDateTime, initials } from '../utils/format.js';
 
@@ -92,6 +95,7 @@ export default function ListingDetail() {
       <div className="detail-grid">
         <div className="stack-lg">
           <div className="card card-lg stack-lg">
+            <Gallery images={l.images} alt={l.title} />
             <div className="row" style={{ gap: 6 }}>
               <StatusBadge status={status} />
               <FoodTag type={l.foodType} />
@@ -108,6 +112,8 @@ export default function ListingDetail() {
               <Info icon={CalendarClock} k="Best before" v={fmtDateTime(l.expiresAt)} />
               <Info icon={MapPin} k="City" v={l.city} />
             </div>
+
+            <BadgeGroups listing={l} />
 
             <div className={`address-card ${canSeeAddress ? 'unlocked' : ''}`}>
               <span className="ic">{canSeeAddress ? <MapPin /> : <Lock />}</span>
@@ -131,6 +137,10 @@ export default function ListingDetail() {
             onRelease={() => run('release', 'Claim released.', { title: 'Release this claim?', message: 'Other NGOs will be able to claim it immediately.', confirmText: 'Release', danger: true })}
             onDelete={remove}
           />
+
+          {(isOwner || isClaimer) && (status === 'claimed' || status === 'completed') && (
+            <ContactCard listing={l} user={user} isOwner={isOwner} />
+          )}
 
           <div className="card stack-lg">
             <h3 className="h3">Progress</h3>

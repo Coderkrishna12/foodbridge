@@ -12,6 +12,8 @@ function validate(f) {
   if (f.organization.trim().length < 2) return 'Organization name is required.';
   if (f.city.trim().length < 2) return 'City is required.';
   if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) return 'Please enter a valid email address.';
+  const d = f.phone.replace(/\D/g, '');
+  if (f.phone.trim() && (d.length < 10 || d.length > 15)) return 'Enter a valid WhatsApp number, e.g. +91 98765 43210.';
   if (f.password.length < 6) return 'Password must be at least 6 characters.';
   if (f.password !== f.confirm) return 'Passwords do not match.';
   return '';
@@ -34,7 +36,7 @@ export default function Register() {
   const [params] = useSearchParams();
   const [form, setForm] = useState({
     role: params.get('role') === 'ngo' ? 'ngo' : 'donor',
-    name: '', organization: '', city: '', email: '', password: '', confirm: '',
+    name: '', organization: '', city: '', email: '', phone: '', password: '', confirm: '',
   });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -115,6 +117,12 @@ export default function Register() {
         <div className="field">
           <label className="field-label" htmlFor="email">Work email</label>
           <input id="email" className="input" name="email" type="email" value={form.email} onChange={onChange} autoComplete="email" />
+        </div>
+        <div className="field">
+          <label className="field-label" htmlFor="phone">WhatsApp number <span className="muted xs">optional</span></label>
+          <input id="phone" className="input" name="phone" type="tel" inputMode="tel" value={form.phone} onChange={onChange}
+            placeholder="+91 98765 43210" autoComplete="tel" />
+          <span className="field-hint">Only shared with the {isDonor ? 'NGO that claims your food' : 'donor whose food you claim'}, so you can chat on WhatsApp.</span>
         </div>
         <div className="form-grid">
           <div className="field">

@@ -18,6 +18,9 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ROLES, required: true },
     organization: { type: String, required: true, trim: true, maxlength: 100 },
     city: { type: String, required: true, trim: true, maxlength: 50 },
+    // WhatsApp number, digits with country code (see utils/phone.js). Only shared with the
+    // other party of an active/completed pickup.
+    phone: { type: String, default: '', match: [/^(\d{11,15})?$/, 'Invalid phone number'] },
   },
   { timestamps: true }
 );

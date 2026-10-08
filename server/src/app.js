@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
 import listingRoutes from './routes/listings.js';
 import statsRoutes from './routes/stats.js';
+import imageRoutes from './routes/images.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 const app = express();
@@ -26,7 +27,7 @@ app.use(
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'], // React inline style attrs
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-        imgSrc: ["'self'", 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:'], // blob: = local previews before upload
         connectSrc: ["'self'"],
         objectSrc: ["'none'"],
         frameAncestors: ["'none'"],
@@ -43,12 +44,15 @@ const limiter = (max, message) =>
   rateLimit({ windowMs: 15 * 60 * 1000, max, standardHeaders: 'draft-7', legacyHeaders: false, skip: () => isTest, message: { message } });
 app.use('/api/auth/login', limiter(20, 'Too many login attempts. Try again in 15 minutes.'));
 app.use('/api/auth/register', limiter(10, 'Too many accounts created. Try again later.'));
+const uploadLimiter = limiter(40, 'Too many uploads. Try again later.');
+app.use('/api/images', (req, res, next) => (req.method === 'POST' ? uploadLimiter(req, res, next) : next()));
 app.use('/api', limiter(500, 'Too many requests. Please slow down.'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/images', imageRoutes);
 
 // Production: serve the built React app (client/dist) from the same server,
 // so frontend + API share one URL. Run `npm run build` in client/ first.

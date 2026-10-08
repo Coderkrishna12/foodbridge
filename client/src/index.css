@@ -702,3 +702,63 @@ main { flex: 1; }
   background: var(--accent-soft); color: var(--accent-text); font-size: 0.78rem; font-weight: 650;
   letter-spacing: 0.06em; font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Food badges ---------- */
+.fbadges { display: flex; flex-wrap: wrap; gap: 6px; }
+.fbadge {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 7px;
+  font-size: 0.74rem; font-weight: 550; white-space: nowrap;
+  background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border);
+}
+.fbadge svg { width: 13px; height: 13px; flex-shrink: 0; }
+.fbadge.pack { background: var(--info-soft); color: var(--info); border-color: transparent; }
+.fbadge.prep { background: var(--brand-soft); color: var(--brand-text); border-color: transparent; }
+.fbadge.warn { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+.fbadge.more { color: var(--muted); }
+.badge-groups { display: flex; flex-direction: column; gap: 14px; }
+.badge-groups .k { font-size: 0.78rem; color: var(--muted); font-weight: 550; margin-bottom: 7px; }
+.chip svg { width: 14px; height: 14px; }
+
+/* ---------- Photos ---------- */
+.lcard-cover {
+  margin: -20px -20px 0; height: 168px; overflow: hidden; border-radius: var(--r) var(--r) 0 0;
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+}
+.lcard-cover img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s var(--ease); }
+.card-hover:hover .lcard-cover img { transform: scale(1.04); }
+
+.photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.photo, .photo-add { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; }
+.photo { border: 1px solid var(--border); background: var(--surface-2); }
+.photo img { width: 100%; height: 100%; object-fit: cover; }
+.photo.uploading img { opacity: 0.45; filter: blur(1px); }
+.photo-busy { position: absolute; inset: 0; display: grid; place-items: center; color: var(--brand-text); }
+.photo-tag { position: absolute; left: 6px; bottom: 6px; background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.photo-x, .photo-cover {
+  position: absolute; top: 6px; width: 26px; height: 26px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); color: #fff;
+}
+.photo-x { right: 6px; }
+.photo-cover { left: 6px; }
+.photo-x svg, .photo-cover svg { width: 14px; height: 14px; }
+.photo-x:hover { background: var(--danger); }
+.photo-cover:hover { background: var(--accent); }
+.photo-add {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  border: 1.5px dashed var(--border-strong); background: var(--bg-elev); color: var(--text-2);
+  cursor: pointer; font: inherit; font-size: 0.85rem; font-weight: 550; transition: border-color 0.15s, background 0.15s;
+}
+.photo-add:hover, .photo-add.drag { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-text); }
+.photo-add svg { width: 22px; height: 22px; }
+
+.gallery { display: flex; flex-direction: column; gap: 10px; }
+.gallery-main { display: block; border-radius: var(--r); overflow: hidden; background: var(--surface-2); aspect-ratio: 16 / 10; }
+.gallery-main img { width: 100%; height: 100%; object-fit: cover; }
+.gallery-thumbs { display: flex; gap: 8px; }
+.gallery-thumbs button { width: 72px; height: 54px; padding: 0; border-radius: 9px; overflow: hidden; border: 2px solid transparent; cursor: pointer; background: none; opacity: 0.7; }
+.gallery-thumbs button.on { border-color: var(--brand); opacity: 1; }
+.gallery-thumbs img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------- WhatsApp ---------- */
+.btn-wa { background: #1fa855; color: #fff; }
+.btn-wa:hover { background: #178a45; }

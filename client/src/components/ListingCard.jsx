@@ -4,6 +4,8 @@ import useNow from '../hooks/useNow.js';
 import { displayStatus, relative } from '../utils/format.js';
 import { Countdown, FoodTag, StatusBadge } from './ListingBits.jsx';
 import { PickupCodeChip } from './PickupCode.jsx';
+import BadgeList from './Badges.jsx';
+import { imageUrl } from '../utils/image.js';
 
 // `preview` renders a non-clickable version (used for the live preview on the post form)
 export default function ListingCard({ listing: l, showDonor = true, preview = false, children }) {
@@ -12,6 +14,9 @@ export default function ListingCard({ listing: l, showDonor = true, preview = fa
 
   return (
     <article className={`card lcard ${preview ? '' : 'card-hover'}`}>
+      {l.images?.length > 0 && (
+        <div className="lcard-cover"><img src={imageUrl(l.images[0])} alt={l.title} loading="lazy" /></div>
+      )}
       <div className="row between">
         <div className="row" style={{ gap: 6 }}>
           <StatusBadge status={status} />
@@ -36,6 +41,7 @@ export default function ListingCard({ listing: l, showDonor = true, preview = fa
         </div>
       </div>
 
+      <BadgeList listing={l} max={3} />
       {status === 'available' && <Countdown listing={l} now={now} />}
       {status === 'claimed' && l.pickupCode && <div><PickupCodeChip code={l.pickupCode} /></div>}
       {children && <div className="actions">{children}</div>}

@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import mongoose from 'mongoose';
-import Listing, { FOOD_TYPES } from '../models/Listing.js';
+import Listing, { DIETARY, FOOD_TYPES, MAX_IMAGES, PACKAGING, PREPARATION } from '../models/Listing.js';
+import Image from '../models/Image.js';
 import { protect, requireRole } from '../middleware/auth.js';
 
 const router = Router();
@@ -9,8 +10,8 @@ router.use(protect);
 
 const MAX_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // listings can be open for at most 7 days
 const POPULATE = [
-  { path: 'donor', select: 'name organization city' },
-  { path: 'claimedBy', select: 'name organization city' },
+  { path: 'donor', select: 'name organization city phone' },
+  { path: 'claimedBy', select: 'name organization city phone' },
 ];
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -56,8 +57,31 @@ function parseListing(body, partial = false) {
     if (d - Date.now() > MAX_EXPIRY_MS) return { error: 'Expiry can be at most 7 days from now' };
     data.expiresAt = d;
   }
+  if (body.packaging !== undefined) {
+    const v = body.packaging || null;
+    if (v !== null && !PACKAGING.includes(v)) return { error: `Packaging must be one of: ${PACKAGING.join(', ')}` };
+    data.packaging = v;
+  }
+  for (const [key, allowed] of [['preparation', PREPARATION], ['dietary', DIETARY]]) {
+    if (body[key] === undefined) continue;
+    if (!Array.isArray(body[key]) || body[key].some((t) => !allowed.includes(t))) {
+      return { error: `${key} must be a list of: ${allowed.join(', ')}` };
+    }
+    data[key] = [...new Set(body[key])];
+  }
+  if (body.images !== undefined) {
+    if (!Array.isArray(body.images) || body.images.length > MAX_IMAGES) return { error: `At most ${MAX_IMAGES} photos` };
+    if (body.images.some((id) => !mongoose.isValidObjectId(id))) return { error: 'Invalid photo id' };
+    data.images = [...new Set(body.images.map(String))];
+  }
   if (partial && Object.keys(data).length === 0) return { error: 'Nothing to update' };
   return { data };
+}
+
+// Photos can only be attached by the donor who uploaded them
+async function imagesOwnedBy(ids, user) {
+  if (!ids?.length) return true;
+  return (await Image.countDocuments({ _id: { $in: ids }, owner: user._id })) === ids.length;
 }
 
 function validId(req, res, next) {
@@ -81,6 +105,11 @@ function forViewer(listing, user) {
   if (!isOwner(listing, user) && !isClaimer(listing, user)) delete json.pickupAddress;
   if (!(isClaimer(listing, user) && listing.status === 'claimed')) delete json.pickupCode;
   delete json.pickupAttempts;
+  // WhatsApp numbers: only exchanged between the donor and the NGO that claimed the listing
+  if (!isOwner(listing, user) && !isClaimer(listing, user)) {
+    if (json.donor) delete json.donor.phone;
+    if (json.claimedBy) delete json.claimedBy.phone;
+  }
   return json;
 }
 
@@ -127,8 +156,9 @@ router.post('/', requireRole('donor'), async (req, res, next) => {
   try {
     const { data, error } = parseListing({ city: req.user.city, ...req.body });
     if (error) return res.status(400).json({ message: error });
+    if (!(await imagesOwnedBy(data.images, req.user))) return res.status(400).json({ message: 'Unknown photo' });
     const listing = await Listing.create({ ...data, donor: req.user._id });
-    res.status(201).json(await listing.populate(POPULATE));
+    res.status(201).json(forViewer(await listing.populate(POPULATE), req.user));
   } catch (err) {
     next(err);
   }
@@ -144,8 +174,11 @@ router.put('/:id', validId, requireRole('donor'), async (req, res, next) => {
     }
     const { data, error } = parseListing(req.body, true);
     if (error) return res.status(400).json({ message: error });
+    if (!(await imagesOwnedBy(data.images, req.user))) return res.status(400).json({ message: 'Unknown photo' });
+    const removed = data.images ? listing.images.filter((id) => !data.images.includes(String(id))) : [];
     Object.assign(listing, data);
     await listing.save();
+    if (removed.length) await Image.deleteMany({ _id: { $in: removed }, owner: req.user._id });
     res.json(forViewer(await listing.populate(POPULATE), req.user));
   } catch (err) {
     next(err);
@@ -161,6 +194,7 @@ router.delete('/:id', validId, requireRole('donor'), async (req, res, next) => {
       return res.status(409).json({ message: 'An NGO has claimed this listing. Ask them to release it first.' });
     }
     await listing.deleteOne();
+    if (listing.images.length) await Image.deleteMany({ _id: { $in: listing.images }, owner: req.user._id });
     res.json({ message: 'Listing deleted', id: listing._id });
   } catch (err) {
     next(err);

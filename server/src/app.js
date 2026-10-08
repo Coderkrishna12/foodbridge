@@ -14,8 +14,9 @@ import { notFound, errorHandler } from './middleware/error.js';
 const app = express();
 const isTest = process.env.NODE_ENV === 'test';
 
-// Behind one proxy (Cloudflare tunnel / Render / etc.) so req.ip is the real client IP
-app.set('trust proxy', 1);
+// Number of reverse proxies in front of the app (Render / Cloudflare tunnel = 1) so req.ip is the
+// real client IP for rate limiting. Override with TRUST_PROXY if your host adds more hops.
+app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 1));
 app.disable('x-powered-by');
 
 // Security headers + Content Security Policy

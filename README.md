@@ -86,6 +86,16 @@ The Vite dev server proxies `/api` to `http://localhost:5000`.
 **Try it:** register one account as a *donor* and post food, then (in another browser or after logging out)
 register as an *NGO*, open **Find food** and claim it.
 
+## Deploy for free (Render + MongoDB Atlas)
+The repo includes a [`render.yaml`](render.yaml) blueprint: one free web service builds the React app and serves it together with the API.
+
+1. **Database:** create a free **M0** cluster on [MongoDB Atlas](https://www.mongodb.com/cloud/atlas). Add a database user, allow network access from `0.0.0.0/0` (Render's free plan has no fixed IP), and copy the connection string. Add the database name before the `?`:
+   `mongodb+srv://<user>:<password>@<cluster>.mongodb.net/foodbridge?retryWrites=true&w=majority`
+2. **App:** on [Render](https://render.com) choose **New → Blueprint**, connect this GitHub repo, and paste the Atlas string as `MONGO_URI` when asked. `JWT_SECRET` is generated automatically.
+3. Every push to `main` redeploys. Free services sleep after 15 min without traffic; the first request after that takes about a minute.
+
+Don't run `npm run seed` against the production database (the demo logins are public in this repo).
+
 ## Tests
 ```bash
 cd server

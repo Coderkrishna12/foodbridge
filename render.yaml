@@ -1,0 +1,21 @@
+# Render Blueprint: one free web service that builds the React app and serves it + the API.
+# Render dashboard -> New -> Blueprint -> pick this repo. Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: foodbridge
+    runtime: node
+    plan: free
+    region: singapore # closest free region to India; change if your users are elsewhere
+    buildCommand: npm ci --prefix client && npm run build --prefix client && npm ci --omit=dev --prefix server
+    startCommand: npm start --prefix server
+    healthCheckPath: /api/health
+    autoDeploy: true # every push to main redeploys
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: JWT_SECRET
+        generateValue: true # Render creates a random secret; it never appears in the repo
+      - key: MONGO_URI
+        sync: false # you paste your MongoDB Atlas connection string in the dashboard

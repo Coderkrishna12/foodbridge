@@ -3,6 +3,7 @@ import { Building2, HandHeart, MapPin } from 'lucide-react';
 import useNow from '../hooks/useNow.js';
 import { displayStatus, relative } from '../utils/format.js';
 import { Countdown, FoodTag, StatusBadge } from './ListingBits.jsx';
+import { PickupCodeChip } from './PickupCode.jsx';
 
 // `preview` renders a non-clickable version (used for the live preview on the post form)
 export default function ListingCard({ listing: l, showDonor = true, preview = false, children }) {
@@ -36,6 +37,7 @@ export default function ListingCard({ listing: l, showDonor = true, preview = fa
       </div>
 
       {status === 'available' && <Countdown listing={l} now={now} />}
+      {status === 'claimed' && l.pickupCode && <div><PickupCodeChip code={l.pickupCode} /></div>}
       {children && <div className="actions">{children}</div>}
     </article>
   );

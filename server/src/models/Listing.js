@@ -17,6 +17,9 @@ const listingSchema = new mongoose.Schema(
     claimedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
     claimedAt: Date,
     completedAt: Date,
+    // 4-digit handover code: shown only to the claiming NGO, entered by the donor at pickup
+    pickupCode: { type: String, select: false },
+    pickupAttempts: { type: Number, default: 0, select: false },
   },
   { timestamps: true, toJSON: { virtuals: true } }
 );

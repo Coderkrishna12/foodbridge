@@ -10,6 +10,7 @@ for the same food (or nobody does).
 - **Donors** post surplus food with servings, food type, pickup address and a best-before time.
 - **NGOs** browse open listings in their city, sorted by urgency, and **claim** one. Claiming is atomic, so only one
   NGO can ever get a listing, even if two click at the same instant.
+- On claim, a random **4-digit pickup code** is shown only to that NGO. At handover the donor enters it, so food can only be released to the NGO that claimed it (5 wrong tries rotate the code).
 - The listing moves through **Available → Claimed → Picked up**. Expired food is automatically hidden and can't be claimed.
 - Live **impact stats** (meals rescued, active listings, donors, NGOs) are shown on the landing page.
 
@@ -44,6 +45,7 @@ for the same food (or nobody does).
 - Passwords hashed with bcrypt, never returned by the API; JWT auth with role checks on every protected route
 - `helmet` security headers with a strict Content Security Policy (no inline scripts)
 - Rate limiting: 20 logins / 10 sign-ups per 15 min per IP, 500 API requests overall
+- 4-digit pickup code: generated with `crypto.randomInt`, never sent to anyone but the claiming NGO, rotated after 5 wrong attempts, cleared on release/pickup
 - Request body limited to 10kb, field whitelisting, validation on every input
 - Demo accounts from `npm run seed` are for local testing only; don't seed a production database
 
@@ -84,7 +86,7 @@ register as an *NGO*, open **Find food** and claim it.
 cd server
 npm test
 ```
-14 checks: auth and validation, role permissions, full CRUD, the two-NGOs-claim-at-once race, claimed-listing locks,
+16 checks: auth and validation, role permissions, full CRUD, the two-NGOs-claim-at-once race, claimed-listing locks,
 release/complete permissions, expiry handling, address privacy, and impact stats.
 
 ## API
@@ -102,6 +104,6 @@ release/complete permissions, expiry handling, address privacy, and impact stats
 | DELETE | /api/listings/:id | owner donor | Delete (not while claimed) |
 | POST | /api/listings/:id/claim | NGO | Claim (atomic) |
 | POST | /api/listings/:id/release | claiming NGO | Release claim |
-| POST | /api/listings/:id/complete | donor or claiming NGO | Mark picked up |
+| POST | /api/listings/:id/complete | owner donor | Confirm handover with the NGO's 4-digit code `{ code }` |
 
 Send the token as `Authorization: Bearer <token>`.

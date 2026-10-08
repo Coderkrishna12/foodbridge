@@ -3,6 +3,7 @@
 //   donor@demo.test  - Spice Garden Restaurant (donor)
 //   ngo@demo.test    - Annapurna Shelter (NGO)
 import 'dotenv/config';
+import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import User from '../src/models/User.js';
 import Listing from '../src/models/Listing.js';
@@ -29,7 +30,7 @@ await Listing.insertMany([
   { title: 'Chicken curry + rotis', foodType: 'non-veg', quantity: 25, pickupAddress: addr, city: 'Pune', expiresAt: inHours(5), donor: donor._id },
   { title: 'Wedding buffet surplus', foodType: 'mixed', quantity: 120, pickupAddress: 'Lawn 3, Koregaon Park', city: 'Pune', expiresAt: inHours(10), donor: donor2._id, description: 'Rice, dal, paneer, sweets.' },
   { title: 'Sandwich & fruit boxes', foodType: 'veg', quantity: 35, pickupAddress: 'Lawn 3, Koregaon Park', city: 'Pune', expiresAt: inHours(20), donor: donor2._id },
-  { title: 'Lunch thali packs', foodType: 'veg', quantity: 30, pickupAddress: addr, city: 'Pune', expiresAt: inHours(6), donor: donor._id, status: 'claimed', claimedBy: ngo._id, claimedAt: new Date() },
+  { title: 'Lunch thali packs', foodType: 'veg', quantity: 30, pickupAddress: addr, city: 'Pune', expiresAt: inHours(6), donor: donor._id, status: 'claimed', claimedBy: ngo._id, claimedAt: new Date(), pickupCode: String(crypto.randomInt(0, 10000)).padStart(4, '0') },
   { title: 'Breakfast idli & sambar', foodType: 'veg', quantity: 60, pickupAddress: addr, city: 'Pune', expiresAt: inHours(3), donor: donor._id, status: 'completed', claimedBy: ngo._id, claimedAt: inHours(-2), completedAt: inHours(-1) },
 ]);
 

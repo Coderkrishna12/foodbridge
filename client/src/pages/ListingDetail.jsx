@@ -10,6 +10,7 @@ import { useToast } from '../components/ui/Toast.jsx';
 import { useConfirm } from '../components/ui/Confirm.jsx';
 import { EmptyState, FullPageLoader, Spinner } from '../components/ui/Feedback.jsx';
 import { Countdown, FoodTag, StatusBadge } from '../components/ListingBits.jsx';
+import { PickupCodeCard, VerifyPickup } from '../components/PickupCode.jsx';
 import useNow from '../hooks/useNow.js';
 import { FOOD_TYPES, displayStatus, fmtDateTime, initials } from '../utils/format.js';
 
@@ -29,6 +30,17 @@ export default function ListingDetail() {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Donor enters the NGO's 4-digit code. Returns '' on success, or the error to show under the boxes.
+  const verify = async (code) => {
+    try {
+      setListing(await api(`/listings/${id}/complete`, { method: 'POST', body: { code } }));
+      toast.success(`Handover verified. ${l.quantity} meals rescued. Thank you!`);
+      return '';
+    } catch (err) {
+      return err.message;
+    }
+  };
 
   const run = async (action, success, confirmOpts) => {
     if (confirmOpts && !(await confirm(confirmOpts))) return;
@@ -114,8 +126,8 @@ export default function ListingDetail() {
         <aside className="stack-lg sticky">
           <Actions
             {...{ user, status, isOwner, isClaimer, busy, id, l }}
-            onClaim={() => run('claim', `Claimed! The pickup address is now visible to you.`)}
-            onComplete={() => run('complete', `${l.quantity} meals rescued. Thank you!`, { title: 'Confirm pickup?', message: 'This marks the food as collected and adds it to the impact count.', confirmText: 'Mark picked up' })}
+            onClaim={() => run('claim', `Claimed! Your pickup code and the address are now visible.`)}
+            onVerify={verify}
             onRelease={() => run('release', 'Claim released.', { title: 'Release this claim?', message: 'Other NGOs will be able to claim it immediately.', confirmText: 'Release', danger: true })}
             onDelete={remove}
           />
@@ -128,7 +140,8 @@ export default function ListingDetail() {
                 t={l.claimedBy ? `Claimed by ${l.claimedBy.organization}` : status === 'expired' ? 'Expired before claim' : 'Waiting for an NGO'}
                 s={l.claimedAt ? fmtDateTime(l.claimedAt) : status === 'available' ? 'Visible to NGOs now' : ''} />
               <Step done={status === 'completed'} current={status === 'claimed'} icon={Truck}
-                t={status === 'completed' ? 'Picked up' : 'Pickup'} s={l.completedAt ? fmtDateTime(l.completedAt) : status === 'claimed' ? 'On the way' : ''} />
+                t={status === 'completed' ? 'Picked up · code verified' : 'Pickup'}
+                s={l.completedAt ? fmtDateTime(l.completedAt) : status === 'claimed' ? 'Donor verifies the 4-digit code at handover' : ''} />
             </ol>
           </div>
 
@@ -142,13 +155,16 @@ export default function ListingDetail() {
   );
 }
 
-function Actions({ user, status, isOwner, isClaimer, busy, id, onClaim, onComplete, onRelease, onDelete }) {
+function Actions({ user, status, isOwner, isClaimer, busy, id, l, onClaim, onVerify, onRelease, onDelete }) {
   const items = [];
   if (user.role === 'ngo' && status === 'available') {
     items.push(<button key="c" className="btn btn-lg btn-block" disabled={!!busy} onClick={onClaim}>{busy === 'claim' ? <Spinner /> : <><HandHeart /> Claim this food</>}</button>);
   }
-  if ((isOwner || isClaimer) && status === 'claimed') {
-    items.push(<button key="p" className="btn btn-lg btn-block" disabled={!!busy} onClick={onComplete}>{busy === 'complete' ? <Spinner /> : <><Truck /> Mark picked up</>}</button>);
+  if (isClaimer && status === 'claimed' && l.pickupCode) {
+    items.push(<PickupCodeCard key="code" code={l.pickupCode} />);
+  }
+  if (isOwner && status === 'claimed') {
+    items.push(<VerifyPickup key="verify" onVerify={onVerify} />);
   }
   if (isClaimer && status === 'claimed') {
     items.push(<button key="r" className="btn btn-secondary btn-block" disabled={!!busy} onClick={onRelease}><Undo2 /> Release claim</button>);
@@ -164,7 +180,7 @@ function Actions({ user, status, isOwner, isClaimer, busy, id, onClaim, onComple
   if (status === 'completed') note = <><CircleCheck size={16} /> This food reached people. Thank you!</>;
   else if (status === 'claimed' && !isOwner && !isClaimer) note = <>Another NGO has claimed this listing.</>;
   else if (status === 'expired' && !isOwner) note = <>This listing expired before it was claimed.</>;
-  else if (isOwner && status === 'claimed') note = <>Locked while an NGO is on the way.</>;
+  else if (isOwner && status === 'claimed') note = <>Listing is locked while the NGO is on the way.</>;
 
   if (!items.length && !note) return null;
   return (

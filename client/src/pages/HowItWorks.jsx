@@ -8,6 +8,7 @@ const FAQ = [
   ['When is my address shared?', 'Only after an NGO claims your listing, and only with that NGO. Everyone else just sees the city.'],
   ['Can I edit a listing after posting?', 'Yes, as long as nobody has claimed it yet. Once claimed it\'s locked, so the NGO on the way sees exactly what they agreed to.'],
   ['What if plans change after claiming?', 'The NGO can release the claim and the listing instantly becomes available to others again.'],
+  ['How does the 4-digit pickup code work?', 'When an NGO claims a listing, FoodBridge generates a random code that only that NGO can see. At pickup the donor enters it, so the food can only be handed to the NGO that actually claimed it. After 5 wrong attempts the code is replaced with a new one.'],
   ['What happens when food expires?', 'It disappears from the NGO feed and can\'t be claimed. The donor can extend it if the food is still good.'],
 ];
 
@@ -32,7 +33,7 @@ export default function HowItWorks() {
             steps={[
               [Plus, 'Post your surplus', 'Title, veg / non-veg, servings, pickup address and best-before time. You see a live preview as you type.'],
               [ClipboardList, 'Track it live', 'Your dashboard shows each listing\'s status and countdown. Edit or extend any time before it\'s claimed.'],
-              [Truck, 'Hand it over', 'When the NGO arrives, either of you marks it picked up. The meals are added to your impact.'],
+              [Truck, 'Verify & hand over', 'When the NGO arrives, ask for their 4-digit pickup code and enter it. Correct code = handover confirmed, meals counted.'],
             ]}
           />
           <Track
@@ -42,7 +43,7 @@ export default function HowItWorks() {
             steps={[
               [Search, 'Browse nearby', 'Open listings in your city, most urgent first. Filter by veg, non-veg or mixed.'],
               [Lock, 'Claim it', 'One click. It\'s now yours alone and the exact pickup address is revealed to you.'],
-              [Undo2, 'Pick up or release', 'Collect the food and confirm, or release the claim so another NGO can take it.'],
+              [Undo2, 'Show your code', 'At pickup, show the donor your 4-digit code. Plans changed? Release the claim so another NGO can take it.'],
             ]}
           />
         </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  CircleCheck, Clock, HandHeart, Inbox, Package, Pencil, Plus, Search, Soup, Trash2, Truck, Undo2,
+  CircleCheck, Clock, HandHeart, Inbox, KeyRound, Package, Pencil, Plus, Search, Soup, Trash2, Truck, Undo2,
 } from 'lucide-react';
 import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -30,18 +30,7 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const replace = (u) => setListings((ls) => ls.map((l) => (l._id === u._id ? u : l)));
   const drop = (id) => setListings((ls) => ls.filter((l) => l._id !== id));
-
-  const complete = async (l) => {
-    if (!(await confirm({ title: 'Confirm pickup?', message: `Mark "${l.title}" as picked up. This adds ${l.quantity} meals to the impact count.`, confirmText: 'Mark picked up' }))) return;
-    try {
-      replace(await api(`/listings/${l._id}/complete`, { method: 'POST' }));
-      toast.success(`${l.quantity} meals rescued. Thank you!`);
-    } catch (err) {
-      toast.error(err.message);
-    }
-  };
   const release = async (l) => {
     if (!(await confirm({ title: 'Release this claim?', message: 'The listing becomes available to other NGOs right away.', confirmText: 'Release', danger: true }))) return;
     try {
@@ -139,7 +128,8 @@ export default function Dashboard() {
               const s = displayStatus(l, now);
               return (
                 <ListingCard key={l._id} listing={l} showDonor={!isDonor}>
-                  {s === 'claimed' && <button className="btn btn-sm" onClick={() => complete(l)}><Truck /> Mark picked up</button>}
+                  {isDonor && s === 'claimed' && <Link to={`/listings/${l._id}`} className="btn btn-sm"><KeyRound /> Enter pickup code</Link>}
+                  {!isDonor && s === 'claimed' && <Link to={`/listings/${l._id}`} className="btn btn-sm"><KeyRound /> Show code</Link>}
                   {!isDonor && s === 'claimed' && <button className="btn btn-secondary btn-sm" onClick={() => release(l)}><Undo2 /> Release</button>}
                   {isDonor && (s === 'available' || s === 'expired') && (
                     <Link to={`/listings/${l._id}/edit`} className="btn btn-secondary btn-sm"><Pencil /> {s === 'expired' ? 'Extend' : 'Edit'}</Link>

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import Listing, { FOOD_TYPES } from '../models/Listing.js';
@@ -68,10 +69,18 @@ const isOwner = (listing, user) => String(listing.donor._id ?? listing.donor) ==
 const isClaimer = (listing, user) =>
   listing.claimedBy && String(listing.claimedBy._id ?? listing.claimedBy) === String(user._id);
 
-// Exact pickup address is only revealed to the donor and the NGO that claimed it
+const MAX_CODE_ATTEMPTS = 5;
+const newPickupCode = () => String(crypto.randomInt(0, 10000)).padStart(4, '0');
+const SECRET_FIELDS = '+pickupCode +pickupAttempts';
+
+// Every response goes through here:
+// - exact pickup address only for the donor and the claiming NGO
+// - pickup code only for the claiming NGO, and only while the claim is active
 function forViewer(listing, user) {
   const json = listing.toJSON();
   if (!isOwner(listing, user) && !isClaimer(listing, user)) delete json.pickupAddress;
+  if (!(isClaimer(listing, user) && listing.status === 'claimed')) delete json.pickupCode;
+  delete json.pickupAttempts;
   return json;
 }
 
@@ -95,8 +104,8 @@ router.get('/', async (req, res, next) => {
 router.get('/mine', async (req, res, next) => {
   try {
     const filter = req.user.role === 'donor' ? { donor: req.user._id } : { claimedBy: req.user._id };
-    const listings = await Listing.find(filter).sort({ createdAt: -1 }).populate(POPULATE);
-    res.json(listings);
+    const listings = await Listing.find(filter).sort({ createdAt: -1 }).select(SECRET_FIELDS).populate(POPULATE);
+    res.json(listings.map((l) => forViewer(l, req.user)));
   } catch (err) {
     next(err);
   }
@@ -105,7 +114,7 @@ router.get('/mine', async (req, res, next) => {
 // READ one
 router.get('/:id', validId, async (req, res, next) => {
   try {
-    const listing = await Listing.findById(req.params.id).populate(POPULATE);
+    const listing = await Listing.findById(req.params.id).select(SECRET_FIELDS).populate(POPULATE);
     if (!listing) return res.status(404).json({ message: 'Listing not found' });
     res.json(forViewer(listing, req.user));
   } catch (err) {
@@ -137,7 +146,7 @@ router.put('/:id', validId, requireRole('donor'), async (req, res, next) => {
     if (error) return res.status(400).json({ message: error });
     Object.assign(listing, data);
     await listing.save();
-    res.json(await listing.populate(POPULATE));
+    res.json(forViewer(await listing.populate(POPULATE), req.user));
   } catch (err) {
     next(err);
   }
@@ -163,9 +172,11 @@ router.post('/:id/claim', validId, requireRole('ngo'), async (req, res, next) =>
   try {
     const listing = await Listing.findOneAndUpdate(
       { _id: req.params.id, status: 'available', expiresAt: { $gt: new Date() } },
-      { status: 'claimed', claimedBy: req.user._id, claimedAt: new Date() },
+      { status: 'claimed', claimedBy: req.user._id, claimedAt: new Date(), pickupCode: newPickupCode(), pickupAttempts: 0 },
       { new: true }
-    ).populate(POPULATE);
+    )
+      .select(SECRET_FIELDS)
+      .populate(POPULATE);
     if (listing) return res.json(forViewer(listing, req.user));
 
     const exists = await Listing.exists({ _id: req.params.id });
@@ -181,7 +192,7 @@ router.post('/:id/release', validId, requireRole('ngo'), async (req, res, next) 
   try {
     const listing = await Listing.findOneAndUpdate(
       { _id: req.params.id, status: 'claimed', claimedBy: req.user._id },
-      { status: 'available', claimedBy: null, claimedAt: null },
+      { status: 'available', claimedBy: null, claimedAt: null, $unset: { pickupCode: 1, pickupAttempts: 1 } },
       { new: true }
     ).populate(POPULATE);
     if (!listing) return res.status(404).json({ message: 'No active claim of yours on this listing' });
@@ -191,19 +202,36 @@ router.post('/:id/release', validId, requireRole('ngo'), async (req, res, next) 
   }
 });
 
-// COMPLETE: food was picked up. Either the donor or the claiming NGO can confirm.
-router.post('/:id/complete', validId, async (req, res, next) => {
+// COMPLETE: the donor hands over the food and enters the 4-digit code the NGO shows them.
+// Wrong codes are counted; after MAX_CODE_ATTEMPTS the code is rotated so it can't be brute-forced.
+router.post('/:id/complete', validId, requireRole('donor'), async (req, res, next) => {
   try {
-    const listing = await Listing.findById(req.params.id);
-    if (!listing) return res.status(404).json({ message: 'Listing not found' });
-    if (!isOwner(listing, req.user) && !isClaimer(listing, req.user)) {
-      return res.status(403).json({ message: 'Only the donor or the claiming NGO can confirm pickup' });
-    }
+    const listing = await Listing.findById(req.params.id).select(SECRET_FIELDS);
+    if (!listing || !isOwner(listing, req.user)) return res.status(404).json({ message: 'Listing not found' });
     if (listing.status !== 'claimed') return res.status(409).json({ message: 'Only claimed listings can be completed' });
+
+    const code = String(req.body.code ?? '').trim();
+    if (!/^\d{4}$/.test(code)) return res.status(400).json({ message: 'Enter the 4-digit pickup code from the NGO' });
+
+    if (code !== listing.pickupCode) {
+      listing.pickupAttempts = (listing.pickupAttempts || 0) + 1;
+      if (listing.pickupAttempts >= MAX_CODE_ATTEMPTS) {
+        listing.pickupCode = newPickupCode();
+        listing.pickupAttempts = 0;
+        await listing.save();
+        return res.status(429).json({ message: 'Too many wrong codes. A new code has been sent to the NGO, so ask them for it.' });
+      }
+      await listing.save();
+      const left = MAX_CODE_ATTEMPTS - listing.pickupAttempts;
+      return res.status(400).json({ message: `Wrong code. ${left} attempt${left === 1 ? '' : 's'} left.` });
+    }
+
     listing.status = 'completed';
     listing.completedAt = new Date();
+    listing.pickupCode = undefined;
+    listing.pickupAttempts = undefined;
     await listing.save();
-    res.json(await listing.populate(POPULATE));
+    res.json(forViewer(await listing.populate(POPULATE), req.user));
   } catch (err) {
     next(err);
   }

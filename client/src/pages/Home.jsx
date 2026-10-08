@@ -63,7 +63,7 @@ export default function Home() {
             [Package, 'Donor posts', 'What it is, how many servings, where, and a best-before time.'],
             [MapPin, 'NGOs see it live', 'Open listings in their city, sorted by what expires first.'],
             [Lock, 'One NGO claims', 'The claim is atomic. The listing locks so nobody else heads there.'],
-            [Truck, 'Picked up & counted', 'Either side confirms the pickup, and the meals count toward impact.'],
+            [Truck, 'Verified handover', 'The NGO shows a 4-digit code; the donor enters it to confirm pickup. Meals are counted.'],
           ].map(([Icon, t, d]) => (
             <div key={t} className="step">
               <div className="step-dot"><Icon /></div>
@@ -91,7 +91,7 @@ export default function Home() {
             <ul className="check-list">
               <li><Check /> Live preview of your listing before you post</li>
               <li><Check /> Your address is only shared with the NGO that claims</li>
-              <li><Check /> Track meals donated over time</li>
+              <li><Check /> Hand over only after verifying the NGO's 4-digit code</li>
             </ul>
             <Link to="/register?role=donor" className="btn btn-secondary" style={{ alignSelf: 'flex-start' }}>
               Join as a donor <ArrowRight />

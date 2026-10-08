@@ -169,20 +169,66 @@ test('claimed listing is locked: no edit/delete, hidden from browse', async () =
   assert.equal((await req('GET', '/listings/mine', null, ngo)).data.length, 1);
 });
 
-test('release + complete permissions', async () => {
-  assert.equal((await req('POST', `/listings/${listingId}/release`, null, ngo2)).status, 404); // not their claim
-  assert.equal((await req('POST', `/listings/${listingId}/complete`, null, ngo2)).status, 403);
-  assert.equal((await req('POST', `/listings/${listingId}/complete`, null, donor2)).status, 403);
+let pickupCode;
 
-  const r = await req('POST', `/listings/${listingId}/complete`, null, ngo);
+test('pickup code: only the claiming NGO can see it', async () => {
+  const asNgo = (await req('GET', `/listings/${listingId}`, null, ngo)).data;
+  assert.match(asNgo.pickupCode, /^\d{4}$/);
+  pickupCode = asNgo.pickupCode;
+
+  assert.equal((await req('GET', `/listings/${listingId}`, null, donor)).data.pickupCode, undefined);
+  assert.equal((await req('GET', `/listings/${listingId}`, null, ngo2)).data.pickupCode, undefined);
+  assert.equal((await req('GET', '/listings/mine', null, ngo)).data[0].pickupCode, pickupCode);
+  assert.equal((await req('GET', '/listings/mine', null, donor)).data.find((l) => l._id === listingId).pickupCode, undefined);
+  assert.ok(!JSON.stringify((await req('GET', `/listings/${listingId}`, null, ngo)).data).includes('pickupAttempts'));
+});
+
+test('release + complete permissions', async () => {
+  const done = (body, token) => req('POST', `/listings/${listingId}/complete`, body, token);
+  assert.equal((await req('POST', `/listings/${listingId}/release`, null, ngo2)).status, 404); // not their claim
+  assert.equal((await done({ code: pickupCode }, ngo)).status, 403); // NGO can't self-complete
+  assert.equal((await done({ code: pickupCode }, donor2)).status, 404); // not their listing
+
+  assert.equal((await done({}, donor)).status, 400); // code required
+  assert.equal((await done({ code: '12a4' }, donor)).status, 400); // must be 4 digits
+  const wrong = pickupCode === '0000' ? '0001' : '0000';
+  const w = await done({ code: wrong }, donor);
+  assert.equal(w.status, 400);
+  assert.match(w.data.message, /4 attempts left/);
+
+  const r = await done({ code: pickupCode }, donor);
   assert.equal(r.status, 200);
   assert.equal(r.data.status, 'completed');
-  assert.equal((await req('POST', `/listings/${listingId}/complete`, null, donor)).status, 409);
+  assert.equal(r.data.pickupCode, undefined);
+  assert.equal((await req('GET', `/listings/${listingId}`, null, ngo)).data.pickupCode, undefined); // gone after pickup
+  assert.equal((await done({ code: pickupCode }, donor)).status, 409);
 
   const s = await req('GET', '/stats');
   assert.equal(s.data.mealsSaved, 50);
   assert.equal(s.data.donors, 2);
   assert.equal(s.data.ngos, 2);
+});
+
+test('pickup code: rotated after 5 wrong attempts, cleared on release', async () => {
+  const l = (await req('POST', '/listings', food({ title: 'Code rotation test' }), donor)).data;
+  await req('POST', `/listings/${l._id}/claim`, null, ngo);
+  const code1 = (await req('GET', `/listings/${l._id}`, null, ngo)).data.pickupCode;
+  const wrong = code1 === '0000' ? '0001' : '0000';
+
+  const statuses = [];
+  for (let i = 0; i < 5; i++) statuses.push((await req('POST', `/listings/${l._id}/complete`, { code: wrong }, donor)).status);
+  assert.deepEqual(statuses, [400, 400, 400, 400, 429]);
+
+  const code2 = (await req('GET', `/listings/${l._id}`, null, ngo)).data.pickupCode;
+  assert.match(code2, /^\d{4}$/);
+  if (code1 !== code2) {
+    assert.equal((await req('POST', `/listings/${l._id}/complete`, { code: code1 }, donor)).status, 400); // old code dead
+  }
+
+  await req('POST', `/listings/${l._id}/release`, null, ngo);
+  const raw = await Listing.findById(l._id).select('+pickupCode');
+  assert.equal(raw.pickupCode, undefined); // cleared on release
+  await req('DELETE', `/listings/${l._id}`, null, donor);
 });
 
 test('expired listings cannot be claimed and are hidden', async () => {
